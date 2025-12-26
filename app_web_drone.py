@@ -31,7 +31,6 @@ LISTA_RONDAS = [
     "Ronda Estacionamento 02",
     "Ronda Talude 03",
     "Ronda Talude 05",
-    
 ]
 
 # --- Controle de Concorrência ---
@@ -72,6 +71,16 @@ def init_db():
                 Operador TEXT
             )
         """)
+
+        # --- Migração de Schema (Auto-Update) ---
+        # Verifica se todas as colunas esperadas existem na tabela física
+        cursor.execute("PRAGMA table_info(registros)")
+        colunas_existentes = [row['name'] for row in cursor.fetchall()]
+        colunas_esperadas = ["Voo", "Ronda_N", "Ronda", "Inicio", "Fim", "Duracao_Formatada", "Status", "Data", "Operador"]
+        
+        for col in colunas_esperadas:
+            if col not in colunas_existentes:
+                cursor.execute(f"ALTER TABLE registros ADD COLUMN {col} TEXT")
         
         # Create 'usuarios' table
         cursor.execute("""
@@ -100,7 +109,7 @@ def carregar_dados(raise_on_error=False):
         try:
             conn = get_db_connection()
             df = pd.read_sql_query("SELECT * FROM registros", conn)
-            # Ensure all expected columns are present, adding if missing
+            # Garante que colunas existam no DataFrame (para leitura segura)
             for col in colunas_esperadas:
                 if col not in df.columns:
                     df[col] = None
@@ -139,7 +148,7 @@ def salvar_registro(novo_dado):
                 novo_dado.get("Operador")
             )
             cursor.execute("""
-                INSERT INTO registros (Voo, Ronda_N, Ronda, Inicio, Fim, Duracao_Formatada, Status, Data, Operador)
+                INSERT INTO registros (Voo, Ronda_N, Ronda, Inicio, Fim, Duracao_Formatada, Status, Data, Operador) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, data_tuple)
             conn.commit()
@@ -322,6 +331,49 @@ def alerta_backup_inicial():
             st.divider()
 
 # --- Funções de Interface (Refatoração) ---
+def renderizar_limpeza_admin():
+    """Renderiza a área de limpeza de banco de dados, exclusiva para admin."""
+    st.divider()
+    st.markdown("### 🧨 Zona de Perigo")
+    
+    # Verifica se o usuário logado é 'admin'
+    if st.session_state.get('usuario', '').lower() != 'admin':
+        st.info("🔒 Apenas o administrador pode acessar as funções de limpeza de banco de dados.")
+        return
+
+    with st.expander("🗑️ Limpar Banco de Dados (Requer Senha Admin)", expanded=False):
+        st.error("⚠️ ATENÇÃO: Esta ação apagará TODOS os registros de voos e rondas. Não pode ser desfeita.")
+        
+        with st.form("form_limpeza_admin"):
+            senha_confirmacao = st.text_input("Digite a senha de Administrador para confirmar:", type="password")
+            check_confirm = st.checkbox("Estou ciente que perderei todos os dados.")
+            btn_limpar = st.form_submit_button("💣 APAGAR TUDO", type="primary")
+            
+            if btn_limpar:
+                if not check_confirm:
+                    st.warning("Você precisa marcar a caixa de confirmação.")
+                else:
+                    # Verifica a senha do admin no banco para autorizar
+                    usuarios_df = carregar_usuarios()
+                    admin_info = usuarios_df[usuarios_df['usuario'].str.lower() == 'admin']
+                    
+                    if not admin_info.empty and verificar_senha(senha_confirmacao, admin_info.iloc[0]['senha']):
+                        with DATA_LOCK:
+                            try:
+                                conn = get_db_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("DELETE FROM registros")
+                                conn.commit()
+                                conn.close()
+                                carregar_dados_dashboard.clear()
+                                show_success_message("Banco de dados limpo com sucesso!")
+                                time.sleep(1)
+                                safe_rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao limpar banco: {e}")
+                    else:
+                        st.error("❌ Senha de administrador incorreta.")
+
 def renderizar_area_importacao(expandido=False):
     if not st.session_state.get('logged_in', False):
         st.info("🔒 Faça login para importar ou gerenciar dados.")
@@ -418,6 +470,9 @@ def renderizar_area_importacao(expandido=False):
                     st.error("O arquivo não possui a estrutura correta (colunas faltando).")
             except Exception as e:
                 st.error(f"Erro ao ler arquivo: {e}")
+
+    # Adiciona a zona de perigo ao final da área de importação
+    renderizar_limpeza_admin()
 
 def renderizar_dashboard():
     st.title("📊 Dashboard de Performance Avançado ")
@@ -945,3 +1000,5 @@ if __name__ == "__main__":
 
 
 #  pyinstaller --name "DroneWebApp" --onefile --windowed --add-data "drone.png;." --add-data "app_data.db;." app_web_drone.py
+
+
