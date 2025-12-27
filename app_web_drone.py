@@ -19,6 +19,7 @@ else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 
 CAMINHO_IMG = os.path.join(application_path, "drone.png")
+CAMINHO_GIF = os.path.join(application_path, "gif.gif")
 
 # --- Configuração da Página ---
 st.set_page_config(page_title="Controle de Drone Web", page_icon=CAMINHO_IMG, layout="wide")
@@ -31,6 +32,7 @@ LISTA_RONDAS = [
     "Ronda Estacionamento 02",
     "Ronda Talude 03",
     "Ronda Talude 05",
+    
 ]
 
 # --- Controle de Concorrência ---
@@ -71,16 +73,6 @@ def init_db():
                 Operador TEXT
             )
         """)
-
-        # --- Migração de Schema (Auto-Update) ---
-        # Verifica se todas as colunas esperadas existem na tabela física
-        cursor.execute("PRAGMA table_info(registros)")
-        colunas_existentes = [row['name'] for row in cursor.fetchall()]
-        colunas_esperadas = ["Voo", "Ronda_N", "Ronda", "Inicio", "Fim", "Duracao_Formatada", "Status", "Data", "Operador"]
-        
-        for col in colunas_esperadas:
-            if col not in colunas_existentes:
-                cursor.execute(f"ALTER TABLE registros ADD COLUMN {col} TEXT")
         
         # Create 'usuarios' table
         cursor.execute("""
@@ -109,7 +101,7 @@ def carregar_dados(raise_on_error=False):
         try:
             conn = get_db_connection()
             df = pd.read_sql_query("SELECT * FROM registros", conn)
-            # Garante que colunas existam no DataFrame (para leitura segura)
+            # Ensure all expected columns are present, adding if missing
             for col in colunas_esperadas:
                 if col not in df.columns:
                     df[col] = None
@@ -148,7 +140,7 @@ def salvar_registro(novo_dado):
                 novo_dado.get("Operador")
             )
             cursor.execute("""
-                INSERT INTO registros (Voo, Ronda_N, Ronda, Inicio, Fim, Duracao_Formatada, Status, Data, Operador) 
+                INSERT INTO registros (Voo, Ronda_N, Ronda, Inicio, Fim, Duracao_Formatada, Status, Data, Operador)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, data_tuple)
             conn.commit()
@@ -331,49 +323,6 @@ def alerta_backup_inicial():
             st.divider()
 
 # --- Funções de Interface (Refatoração) ---
-def renderizar_limpeza_admin():
-    """Renderiza a área de limpeza de banco de dados, exclusiva para admin."""
-    st.divider()
-    st.markdown("### 🧨 Zona de Perigo")
-    
-    # Verifica se o usuário logado é 'admin'
-    if st.session_state.get('usuario', '').lower() != 'admin':
-        st.info("🔒 Apenas o administrador pode acessar as funções de limpeza de banco de dados.")
-        return
-
-    with st.expander("🗑️ Limpar Banco de Dados (Requer Senha Admin)", expanded=False):
-        st.error("⚠️ ATENÇÃO: Esta ação apagará TODOS os registros de voos e rondas. Não pode ser desfeita.")
-        
-        with st.form("form_limpeza_admin"):
-            senha_confirmacao = st.text_input("Digite a senha de Administrador para confirmar:", type="password")
-            check_confirm = st.checkbox("Estou ciente que perderei todos os dados.")
-            btn_limpar = st.form_submit_button("💣 APAGAR TUDO", type="primary")
-            
-            if btn_limpar:
-                if not check_confirm:
-                    st.warning("Você precisa marcar a caixa de confirmação.")
-                else:
-                    # Verifica a senha do admin no banco para autorizar
-                    usuarios_df = carregar_usuarios()
-                    admin_info = usuarios_df[usuarios_df['usuario'].str.lower() == 'admin']
-                    
-                    if not admin_info.empty and verificar_senha(senha_confirmacao, admin_info.iloc[0]['senha']):
-                        with DATA_LOCK:
-                            try:
-                                conn = get_db_connection()
-                                cursor = conn.cursor()
-                                cursor.execute("DELETE FROM registros")
-                                conn.commit()
-                                conn.close()
-                                carregar_dados_dashboard.clear()
-                                show_success_message("Banco de dados limpo com sucesso!")
-                                time.sleep(1)
-                                safe_rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao limpar banco: {e}")
-                    else:
-                        st.error("❌ Senha de administrador incorreta.")
-
 def renderizar_area_importacao(expandido=False):
     if not st.session_state.get('logged_in', False):
         st.info("🔒 Faça login para importar ou gerenciar dados.")
@@ -430,7 +379,7 @@ def renderizar_area_importacao(expandido=False):
                     st.info(f"Arquivo carregado: {len(df_upload)} registros encontrados.")
                     c_imp1, c_imp2 = st.columns(2)
                     
-                    if c_imp1.button("➕ Mesclar com Existentes", width="stretch"):
+                    if c_imp1.button("➕ Mesclar com Existentes", use_container_width=True):
                         with DATA_LOCK:
                             conn = get_db_connection()
                             cursor = conn.cursor()
@@ -448,7 +397,7 @@ def renderizar_area_importacao(expandido=False):
                         show_success_message("Dados mesclados com sucesso!")
                         safe_rerun()
                         
-                    if c_imp2.button("⚠️ Substituir Base Completa", width="stretch", type="primary"):
+                    if c_imp2.button("⚠️ Substituir Base Completa", use_container_width=True, type="primary"):
                         with DATA_LOCK:
                             conn = get_db_connection()
                             cursor = conn.cursor()
@@ -471,8 +420,42 @@ def renderizar_area_importacao(expandido=False):
             except Exception as e:
                 st.error(f"Erro ao ler arquivo: {e}")
 
-    # Adiciona a zona de perigo ao final da área de importação
-    renderizar_limpeza_admin()
+    st.divider()
+
+    with st.expander("🗑️ Zona de Perigo (Limpeza de Dados)", expanded=False):
+        st.warning("⚠️ Esta ação apagará TODOS os registros de voos e rondas. Não pode ser desfeita.")
+        
+        senha_confirmacao = st.text_input("Digite a senha de ADMIN para confirmar:", type="password", key="senha_limpeza")
+        
+        if st.button("💣 LIMPAR BANCO DE DADOS", type="primary", use_container_width=True):
+            if not senha_confirmacao:
+                st.warning("Digite a senha de administrador.")
+            else:
+                # Verificar senha do admin
+                usuarios_df = carregar_usuarios()
+                # Busca admin de forma segura
+                admin_user = usuarios_df[usuarios_df['usuario'].str.lower() == 'admin']
+                
+                if not admin_user.empty:
+                    senha_hash_admin = admin_user.iloc[0]['senha']
+                    if verificar_senha(senha_confirmacao, senha_hash_admin):
+                        with DATA_LOCK:
+                            try:
+                                conn = get_db_connection()
+                                cursor = conn.cursor()
+                                cursor.execute("DELETE FROM registros")
+                                conn.commit()
+                                conn.close()
+                                carregar_dados_dashboard.clear()
+                                show_success_message("Banco de dados limpo com sucesso!")
+                                time.sleep(1)
+                                safe_rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao limpar banco: {e}")
+                    else:
+                        st.error("Senha de administrador incorreta.")
+                else:
+                    st.error("Erro crítico: Usuário admin não encontrado.")
 
 def renderizar_dashboard():
     st.title("📊 Dashboard de Performance Avançado ")
@@ -717,7 +700,7 @@ def renderizar_dashboard():
 
         st.divider()
         st.subheader("Visualização dos Dados (Filtrados)")
-        st.dataframe(df_filtered, width="stretch")
+        st.dataframe(df_filtered)
 
 # --- Interface Principal ---
 def main():
@@ -725,7 +708,10 @@ def main():
         st.session_state['logged_in'] = False
 
     # Sidebar (Menu Lateral)
-    st.sidebar.image(CAMINHO_IMG, width="stretch")
+    if os.path.exists(CAMINHO_GIF):
+        st.sidebar.image(CAMINHO_GIF)
+    else:
+        st.sidebar.image(CAMINHO_IMG)
     
     # Lógica de Exibição do Usuário e Login Rápido
     if st.session_state.get('logged_in', False):
@@ -789,7 +775,7 @@ def main():
             st.subheader("1. Controle de Voo")
             col_v1, col_v2 = st.columns(2)
 
-            if col_v1.button("✈️ Iniciar Novo Voo", disabled=st.session_state['voo_ativo'], width="stretch", type="primary"):
+            if col_v1.button("✈️ Iniciar Novo Voo", disabled=st.session_state['voo_ativo'], use_container_width=True, type="primary"):
                 df = carregar_dados(raise_on_error=False) # Leitura segura para UI
                 proximo_voo_num = 1
                 if not df.empty and 'Voo' in df.columns:
@@ -803,7 +789,7 @@ def main():
                 st.session_state['contador_rondas_voo'] = 0
                 safe_rerun()
 
-            if col_v2.button("🛑 Finalizar Voo", disabled=not st.session_state['voo_ativo'] or st.session_state['ronda_ativa'] or st.session_state['evento_ativo'], width="stretch"):
+            if col_v2.button("🛑 Finalizar Voo", disabled=not st.session_state['voo_ativo'] or st.session_state['ronda_ativa'] or st.session_state['evento_ativo'], use_container_width=True):
                 show_success_message(f"Voo {st.session_state['numero_voo_atual']:02d} finalizado com {st.session_state['contador_rondas_voo']} rondas.")
                 st.session_state['voo_ativo'] = False
                 st.session_state['numero_voo_atual'] = None
@@ -823,13 +809,13 @@ def main():
 
                 col_r1, col_r2 = st.columns(2)
                 
-                if col_r1.button("🛫 Iniciar Ronda", disabled=st.session_state['ronda_ativa'] or st.session_state['evento_ativo'], width="stretch"):
+                if col_r1.button("🛫 Iniciar Ronda", disabled=st.session_state['ronda_ativa'] or st.session_state['evento_ativo'], use_container_width=True):
                     st.session_state['ronda_ativa'] = True
                     st.session_state['inicio_ronda'] = datetime.now()
                     st.session_state['ronda_selecionada'] = ronda
                     safe_rerun()
 
-                if col_r2.button("🛬 Finalizar Ronda", disabled=not st.session_state['ronda_ativa'], width="stretch"):
+                if col_r2.button("🛬 Finalizar Ronda", disabled=not st.session_state['ronda_ativa'], use_container_width=True):
                     fim = datetime.now()
                     inicio = st.session_state['inicio_ronda']
                     duracao_segundos = (fim - inicio).total_seconds()
@@ -886,7 +872,7 @@ def main():
                     st.warning(f"⚠️ {st.session_state['tipo_evento_atual']} em andamento...")
                     st.write(f"Início: {st.session_state['inicio_evento'].strftime('%H:%M:%S')}")
                     
-                    if st.button("🏁 Finalizar Evento", width="stretch"):
+                    if st.button("🏁 Finalizar Evento", use_container_width=True):
                         fim = datetime.now()
                         inicio = st.session_state['inicio_evento']
                         duracao_segundos = (fim - inicio).total_seconds()
@@ -919,13 +905,13 @@ def main():
                         time.sleep(1)
                         safe_rerun()
                 else:
-                    if col_ev1.button("🔋 Iniciar Troca de Bateria", width="stretch", disabled=st.session_state['ronda_ativa']):
+                    if col_ev1.button("🔋 Iniciar Troca de Bateria", use_container_width=True, disabled=st.session_state['ronda_ativa']):
                         st.session_state['evento_ativo'] = True
                         st.session_state['tipo_evento_atual'] = "Troca de Bateria"
                         st.session_state['inicio_evento'] = datetime.now()
                         safe_rerun()
                     
-                    if col_ev2.button("🍽️ Iniciar Intervalo Refeição", width="stretch", disabled=st.session_state['ronda_ativa']):
+                    if col_ev2.button("🍽️ Iniciar Intervalo Refeição", use_container_width=True, disabled=st.session_state['ronda_ativa']):
                         st.session_state['evento_ativo'] = True
                         st.session_state['tipo_evento_atual'] = "Intervalo Refeição"
                         st.session_state['inicio_evento'] = datetime.now()
@@ -972,7 +958,7 @@ def main():
         df = carregar_dados()
         if not df.empty:
             # Mostrar os últimos 10, invertido
-            st.dataframe(df.tail(10).iloc[::-1], width="stretch")
+            st.dataframe(df.tail(10).iloc[::-1])
 
     # --- Lógica do Dashboard ---
     elif menu == "Dashboard / Relatórios":
@@ -1000,5 +986,7 @@ if __name__ == "__main__":
 
 
 #  pyinstaller --name "DroneWebApp" --onefile --windowed --add-data "drone.png;." --add-data "app_data.db;." app_web_drone.py
+
+
 
 
