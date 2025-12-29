@@ -1,26 +1,71 @@
-# 🚁 Controle de Drone Web
+# 🚁 Sistema de Controle de Drone & Dashboard
 
-Sistema de gestão operacional para equipes de segurança com drones. O aplicativo permite o registro de voos, cronometragem de rondas e análise de performance dos operadores através de dashboards interativos.
+Aplicação web completa para gerenciamento de operações de drones em segurança patrimonial. Permite o registro em tempo real de voos, rondas e eventos operacionais, além de oferecer um dashboard analítico robusto para tomada de decisão.
 
 ## 📋 Funcionalidades
 
-- **Controle de Voo:** Registro de início e fim de voos e rondas.
-- **Cronômetro:** Monitoramento em tempo real da duração das rondas.
-- **Gestão de Ocorrências:** Registro de pausas (bateria, refeição) e justificativas.
-- **Dashboard:** Gráficos interativos (Plotly) para análise de produtividade e tendências.
-- **Autenticação:** Sistema de login para operadores e admin.
-- **Banco de Dados:** Armazenamento local em SQLite com suporte a backup/restore.
+### 🎮 Painel de Controle (Operacional)
+- **Registro de Voos**: Controle de início e fim de voos com numeração automática.
+- **Cronômetro de Rondas**: Monitoramento preciso do tempo de ronda por área (Perímetro, Estacionamento, etc.).
+- **Eventos Operacionais**: Registro de paradas para troca de bateria ou refeição.
+- **Justificativas**: Opção para justificar rondas não realizadas (ex: Chuva).
 
-## 🛠️ Tecnologias Utilizadas
+### 📊 Dashboard Analítico (Gerencial)
+- **KPIs em Tempo Real**: Total de voos, horas de operação, média de tempo por ronda.
+- **Evolução Temporal**: Gráficos de linha e área para volume de voos mensal e diário.
+- **Mapa de Calor (Heatmap)**: Identificação visual de horários e dias de maior atividade.
+- **Performance da Equipe**: Comparativo de produtividade entre operadores e Matriz de Eficiência (Volume x Velocidade).
+- **Análise de Variabilidade**: Boxplot para identificar anomalias (outliers) nos tempos de ronda.
+- **Data Storytelling**: Guias visuais explicativos em cada aba para facilitar a interpretação dos gráficos.
 
-- Python 3
-- Streamlit (Interface Web)
-- Pandas (Manipulação de Dados)
-- Plotly (Gráficos)
-- SQLite (Banco de Dados)
+### 💾 Gerenciamento de Dados
+- **Banco de Dados SQLite**: Armazenamento local seguro (`app_data.db`).
+- **Backup & Restore**: Download e upload do banco de dados diretamente pela interface.
+- **Exportação**: Download dos dados filtrados em CSV.
+- **Importação**: Capacidade de importar dados legados via CSV.
 
-## 🚀 Como Rodar Localmente
+### 🔐 Segurança
+- **Autenticação**: Sistema de login para operadores e administrador.
+- **Níveis de Acesso**: Apenas admin pode cadastrar novos usuários ou limpar o banco de dados.
 
-1. Instale as dependências:
+## 🚀 Como Executar
+
+### Pré-requisitos
+- Python 3.8+
+- Bibliotecas Python listadas abaixo.
+
+### Instalação
+
+1. Clone o repositório ou baixe os arquivos.
+2. Instale as dependências necessárias:
    ```bash
-   pip install -r requirements.txt
+   pip install streamlit pandas plotly
+   ```
+   *(Nota: O Python já inclui nativamente `sqlite3`, `hashlib`, `os`, `sys`, `random`, `time`, `threading`)*.
+
+3. Execute a aplicação:
+   ```bash
+   streamlit run app_web_drone.py
+   ```
+
+## 📦 Criando Executável (Windows)
+
+Para distribuir a aplicação sem necessidade de instalar Python em outras máquinas, você pode gerar um executável `.exe` usando o PyInstaller.
+
+Execute o seguinte comando no terminal (dentro da pasta do projeto):
+
+```bash
+pyinstaller --name "DroneWebApp" --onefile --windowed --add-data "drone.png;." --add-data "app_data.db;." app_web_drone.py
+```
+
+*Certifique-se de ter o arquivo `drone.png` na pasta raiz antes de compilar.*
+
+## 📂 Estrutura do Projeto
+
+- `app_web_drone.py`: Código fonte principal da aplicação.
+- `app_data.db`: Banco de dados SQLite (gerado automaticamente na primeira execução).
+- `drone.png`: Logo/Ícone utilizado na interface.
+- `README.md`: Documentação do projeto.
+
+---
+**Desenvolvido por Clayton S.Silva**
