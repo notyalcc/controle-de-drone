@@ -565,6 +565,10 @@ def renderizar_dashboard():
 
     with tab1:
         st.subheader("Análise Temporal")
+        st.markdown("""
+        > **Objetivo:** Entender como a carga de trabalho se distribui ao longo do tempo para identificar picos de demanda e sazonalidade.
+        """)
+        
         c1, c2 = st.columns(2)
         
         with c1:
@@ -595,6 +599,12 @@ def renderizar_dashboard():
         st.subheader("Mapa de Calor Operacional")
         st.caption("Intensidade de operações por dia da semana e horário.")
         
+        st.info("""
+        **🔍 Como ler o Mapa de Calor:**
+        - **Eixo X (Horizontal):** Horas do dia. | **Eixo Y (Vertical):** Dias da semana.
+        - **Cores:** Áreas mais claras/brilhantes indicam **maior concentração de atividades**. Use isso para identificar gargalos ou horários de pico que exigem mais atenção.
+        """)
+        
         # Heatmap
         heatmap_data = df_filtered.groupby(['Dia_Semana', 'Hora']).size().reset_index(name='Atividades')
         # Garantir ordem dos dias no heatmap
@@ -610,6 +620,10 @@ def renderizar_dashboard():
 
     with tab2:
         st.subheader("Produtividade da Equipe")
+        st.markdown("""
+        > **Objetivo:** Comparar o desempenho individual dos operadores em termos de volume de trabalho e tempo dedicado.
+        """)
+        
         c1, c2 = st.columns(2)
         
         with c1:
@@ -628,6 +642,16 @@ def renderizar_dashboard():
             
         st.divider()
         st.subheader("Matriz de Eficiência (Volume x Velocidade)")
+        
+        st.info("""
+        **🧠 Como interpretar a Matriz de Dispersão:**
+        Este gráfico cruza a quantidade de trabalho com a velocidade de execução.
+        - **Eixo X (Horizontal):** Quantidade de Rondas (Volume). Mais à direita = Mais produtivo.
+        - **Eixo Y (Vertical):** Tempo Médio por Ronda. Mais acima = Mais demorado.
+        - **Tamanho da Bolha:** Representa o total de rondas realizadas.
+        *Busque operadores no canto inferior direito (alto volume, tempo otimizado).*
+        """)
+
         # Agrupamento para Scatter Plot
         eff_df = df_filtered[~df_filtered['Ronda'].str.contains("EVENTO", na=False)].groupby('Operador').agg(
             Rondas=('Ronda', 'count'),
@@ -642,6 +666,10 @@ def renderizar_dashboard():
 
     with tab3:
         st.subheader("Detalhamento de Rondas")
+        st.markdown("""
+        > **Objetivo:** Analisar quais áreas demandam mais atenção e a consistência dos tempos de execução.
+        """)
+        
         c1, c2 = st.columns(2)
         
         with c1:
@@ -667,6 +695,15 @@ def renderizar_dashboard():
         st.divider()
         st.subheader("Variabilidade de Tempo (Boxplot)")
         st.caption("Este gráfico ajuda a identificar anomalias. Pontos fora das caixas são rondas que demoraram muito mais ou muito menos que o normal.")
+        
+        st.info("""
+        **📊 Guia de Leitura do Boxplot:**
+        - **A Caixa Colorida:** Representa onde se concentram **50% das rondas** (o tempo "normal").
+        - **A Linha no Meio da Caixa:** É a **Mediana** (o tempo mais típico, ignorando extremos).
+        - **As Hastes (linhas finas):** Mostram a variação mínima e máxima aceitável.
+        - **Pontos Soltos (Losangos):** São **Outliers (Anomalias)**. Rondas que fugiram muito do padrão (muito rápidas ou muito lentas).
+        """)
+
         # Boxplot para ver distribuição e outliers
         rondas_validas = df_filtered[(df_filtered['Duracao_Min'] > 0) & (~df_filtered['Ronda'].str.contains("EVENTO", na=False))]
         fig_box = px.box(rondas_validas, x='Ronda', y='Duracao_Min', color='Ronda', title="Distribuição de Tempo por Tipo de Ronda")
@@ -674,6 +711,10 @@ def renderizar_dashboard():
 
     with tab4:
         st.subheader("Eventos Operacionais")
+        st.markdown("""
+        > **Objetivo:** Monitorar o impacto de paradas operacionais (trocas de bateria, refeições) na disponibilidade do drone.
+        """)
+        
         eventos_df = df_filtered[df_filtered['Ronda'] == "EVENTO OPERACIONAL"]
         
         if not eventos_df.empty:
@@ -986,7 +1027,3 @@ if __name__ == "__main__":
 
 
 #  pyinstaller --name "DroneWebApp" --onefile --windowed --add-data "drone.png;." --add-data "app_data.db;." app_web_drone.py
-
-
-
-
