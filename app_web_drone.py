@@ -9,6 +9,7 @@ import random
 import sqlite3
 import plotly.express as px
 import threading
+import pytz
 
 # --- Configuração de Caminhos (Robusto para Script e Executável) ---
 if getattr(sys, 'frozen', False):
@@ -38,6 +39,9 @@ LISTA_RONDAS = [
 # --- Controle de Concorrência ---
 # RLock permite que a mesma thread adquira o bloqueio várias vezes (ex: salvar chama carregar)
 DATA_LOCK = threading.RLock()
+
+# --- Configuração de Fuso Horário (Brasil) ---
+FUSO_BR = pytz.timezone('America/Sao_Paulo')
 
 # --- SQLite Functions ---
 def get_db_connection():
@@ -212,14 +216,14 @@ if hasattr(st, "fragment"):
         inicio = st.session_state.get('inicio_ronda')
         if inicio:
             try:
-                agora = datetime.now()
+                agora = datetime.now(FUSO_BR)
                 delta_segundos = (agora - inicio).total_seconds()
                 st.metric(label="Tempo da Ronda", value=formatar_duracao(delta_segundos))
             except Exception: pass
 
     @st.fragment
     def exibir_cronometro_estatico():
-        agora = datetime.now()
+        agora = datetime.now(FUSO_BR)
         delta_segundos = (agora - st.session_state['inicio_ronda']).total_seconds()
         st.metric(label="Tempo da Ronda", value=formatar_duracao(delta_segundos))
         if st.button("🔄 Atualizar Manualmente"):
@@ -230,7 +234,7 @@ if hasattr(st, "fragment"):
         inicio = st.session_state.get('inicio_evento')
         if inicio:
             try:
-                agora = datetime.now()
+                agora = datetime.now(FUSO_BR)
                 delta_segundos = (agora - inicio).total_seconds()
                 st.metric(label="Duração do Evento", value=formatar_duracao(delta_segundos))
             except Exception: pass
@@ -312,7 +316,7 @@ def alerta_backup_inicial():
                     st.download_button(
                         label="⬇️ BAIXAR BACKUP AGORA (app_data.db)",
                         data=f,
-                        file_name=f"backup_auto_{datetime.now().strftime('%Y%m%d_%H%M')}.db",
+                        file_name=f"backup_auto_{datetime.now(FUSO_BR).strftime('%Y%m%d_%H%M')}.db",
                         mime="application/octet-stream",
                         use_container_width=True,
                         type="primary",
@@ -852,12 +856,12 @@ def main():
                 
                 if col_r1.button("🛫 Iniciar Ronda", disabled=st.session_state['ronda_ativa'] or st.session_state['evento_ativo'], use_container_width=True):
                     st.session_state['ronda_ativa'] = True
-                    st.session_state['inicio_ronda'] = datetime.now()
+                    st.session_state['inicio_ronda'] = datetime.now(FUSO_BR)
                     st.session_state['ronda_selecionada'] = ronda
                     safe_rerun()
 
                 if col_r2.button("🛬 Finalizar Ronda", disabled=not st.session_state['ronda_ativa'], use_container_width=True):
-                    fim = datetime.now()
+                    fim = datetime.now(FUSO_BR)
                     inicio = st.session_state['inicio_ronda']
                     duracao_segundos = (fim - inicio).total_seconds()
                     st.session_state['contador_rondas_voo'] += 1
@@ -885,7 +889,7 @@ def main():
                     if st.button("Registrar Justificativa", disabled=st.session_state['ronda_ativa'] or st.session_state['evento_ativo']):
                         if motivo:
                             st.session_state['contador_rondas_voo'] += 1
-                            agora = datetime.now()
+                            agora = datetime.now(FUSO_BR)
                             novo_registro = {
                                 "Voo": f"{st.session_state['numero_voo_atual']:02d}",
                                 "Ronda_N": st.session_state['contador_rondas_voo'],
@@ -914,7 +918,7 @@ def main():
                     st.write(f"Início: {st.session_state['inicio_evento'].strftime('%H:%M:%S')}")
                     
                     if st.button("🏁 Finalizar Evento", use_container_width=True):
-                        fim = datetime.now()
+                        fim = datetime.now(FUSO_BR)
                         inicio = st.session_state['inicio_evento']
                         duracao_segundos = (fim - inicio).total_seconds()
                         st.session_state['contador_rondas_voo'] += 1
@@ -940,7 +944,7 @@ def main():
                     if hasattr(st, "fragment"):
                         exibir_cronometro_evento()
                     else:
-                        agora = datetime.now()
+                        agora = datetime.now(FUSO_BR)
                         delta_segundos = (agora - st.session_state['inicio_evento']).total_seconds()
                         st.metric(label="Duração do Evento", value=formatar_duracao(delta_segundos))
                         time.sleep(1)
@@ -949,13 +953,13 @@ def main():
                     if col_ev1.button("🔋 Iniciar Troca de Bateria", use_container_width=True, disabled=st.session_state['ronda_ativa']):
                         st.session_state['evento_ativo'] = True
                         st.session_state['tipo_evento_atual'] = "Troca de Bateria"
-                        st.session_state['inicio_evento'] = datetime.now()
+                        st.session_state['inicio_evento'] = datetime.now(FUSO_BR)
                         safe_rerun()
                     
                     if col_ev2.button("🍽️ Iniciar Intervalo Refeição", use_container_width=True, disabled=st.session_state['ronda_ativa']):
                         st.session_state['evento_ativo'] = True
                         st.session_state['tipo_evento_atual'] = "Intervalo Refeição"
-                        st.session_state['inicio_evento'] = datetime.now()
+                        st.session_state['inicio_evento'] = datetime.now(FUSO_BR)
                         safe_rerun()
 
         with col_dir:
@@ -978,7 +982,7 @@ def main():
                             exibir_cronometro_estatico()
                     else:
                         # Fallback para versões antigas do Streamlit
-                        agora = datetime.now()
+                        agora = datetime.now(FUSO_BR)
                         delta_segundos = (agora - st.session_state['inicio_ronda']).total_seconds()
                         st.metric(label="Tempo da Ronda", value=formatar_duracao(delta_segundos))
                         
